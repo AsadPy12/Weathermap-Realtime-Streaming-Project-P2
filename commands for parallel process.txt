@@ -1,0 +1,82 @@
+******************** Commands **************************
+sudo apt update 
+sudo apt install python3-pip python3.12-venv
+python3 -m venv weathermap_venv
+source weathermap_venv/bin/activate
+pip3 install pandas
+pip install s3fs
+pip install fsspec
+pip install apache-airflow
+pip install wtforms == 3.0.1
+pip install apache-airflow-providers-postgres
+
+****************** Installing Postgres *****************
+sudo apt install curl ca-certificates
+sudo install -d /usr/share/postgresql-common/pgdg
+sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
+sudo sh -c 'echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+sudo apt update
+sudo apt -y install postgresql
+
+
+########### Installing the aws_s3 extension #############
+psql -h weathermap-db-1.cf8ikwmomjey.us-west-2.rds.amazonaws.com -p 5432 -U postgres -W
+CREATE EXTENSION aws_s3 CASCADE;
+
+
+############## Policy and Role Creation #################
+aws iam create-policy \
+   --policy-name rds-s3-import-policy-ymlo \
+   --policy-document '{
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Sid": "s3import",
+         "Action": [
+           "s3:GetObject",
+           "s3:ListBucket"
+         ],
+         "Effect": "Allow",
+         "Resource": [
+           "arn:aws:s3:::testing-data-ymlo", 
+           "arn:aws:s3:::testing-data-ymlo/*"
+         ] 
+       }
+     ] 
+   }'                     
+
+
+
+aws iam create-role \
+   --role-name rds-s3-import-role-ymlo \
+   --assume-role-policy-document '{
+     "Version": "2012-10-17",
+     "Statement": [
+       {
+         "Effect": "Allow",
+         "Principal": {
+            "Service": "rds.amazonaws.com"
+          },
+         "Action": "sts:AssumeRole",
+         "Condition": {
+             "StringEquals": {
+                "aws:SourceAccount": "**************",
+                "aws:SourceArn": "arn:aws:rds:us-east-1:************:db:weathermap_integration"
+                }
+             }
+       }
+     ] 
+   }'
+
+
+
+&&&&&&&&&&&&&&& Policy and Role Attachments &&&&&&&&&&&&&
+aws iam attach-role-policy \
+   --policy-arn arn:aws:iam::376129854541:policy/rds-s3-import-policy-ymlo \
+   --role-name rds-s3-import-role-ymlo 
+
+aws rds add-role-to-db-instance \
+   --db-instance-identifier weathermap-db-1 \
+   --feature-name s3Import \
+   --role-arn arn:aws:iam::376129854541:role/rds-s3-import-role-ymlo  \
+   --region us-west-2                  
