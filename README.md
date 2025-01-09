@@ -1,4 +1,4 @@
-# Weathermap-Realtime-Streaming-Project-P2
+# Realtime Parallel Processing Using Amazon, Aws
 
 ## Overview
 
